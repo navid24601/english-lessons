@@ -6,3 +6,24 @@ button:active{transform:translate(2px,2px)}button:disabled{opacity:.5;cursor:not
 
 .progress-four{grid-template-columns:repeat(4,1fr)}
 @media(max-width:650px){.progress-four{grid-template-columns:repeat(2,1fr)}}
+
+.progress-five{grid-template-columns:repeat(5,1fr)}
+@media(max-width:650px){.progress-five{grid-template-columns:repeat(2,1fr)}}
+
+/* Lesson reference table: shared theme tokens, scrollable on small screens. */
+.grammar-reference{margin:0 0 3rem;padding:1.3rem;background:var(--surface);border:1px solid var(--rule);box-shadow:7px 7px 0 var(--shadow)}
+.grammar-reference h2{margin:.2rem 0 1rem}.grammar-table-scroll{overflow-x:auto}.grammar-reference table{width:100%;min-width:580px;border-collapse:collapse;text-align:left}.grammar-reference caption{text-align:left;color:var(--muted);padding:0 0 1rem}.grammar-reference th,.grammar-reference td{padding:1rem;vertical-align:top;border-bottom:1px solid var(--rule)}.grammar-reference thead th{background:var(--surface2);color:var(--accent);border-top:2px solid var(--accent)}.grammar-reference tbody th{width:23%;color:var(--accent)}.grammar-reference tbody td:nth-child(2){width:46%;line-height:1.8}
+
+/* Gerund and infinitive meaning contrasts. */
+.meaning-reference{margin:0 0 3rem}
+.meaning-reference>h2{margin-bottom:.7rem}
+.meaning-card{margin:1.4rem 0;background:var(--surface);border:1px solid var(--rule);box-shadow:5px 5px 0 var(--shadow)}
+.meaning-card>h3{margin:0;padding:1rem 1.2rem;color:var(--accent);border-bottom:1px solid var(--rule)}
+.meaning-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+.meaning-side{padding:1.2rem}
+.meaning-side+.meaning-side{border-left:1px solid var(--rule)}
+.meaning-side h4{margin:0 0 .6rem;font:700 1rem var(--body)}
+.meaning-side p{margin:.6rem 0}
+.meaning-example{border-left:3px solid var(--accent);padding:.5rem .8rem;background:var(--surface2)}
+.meaning-side .muted{font-size:.95rem}
+@media(max-width:650px){.meaning-pair{grid-template-columns:1fr}.meaning-side+.meaning-side{border-left:0;border-top:1px solid var(--rule)}}
