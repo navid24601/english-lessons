@@ -1,0 +1,74 @@
+const entry = LESSONS.find(x => String(x.id) === new URLSearchParams(location.search).get('id'));
+if (!entry) { location.replace('index.html'); throw new Error('Lesson not found'); }
+const LESSON = entry.tasks, WRITING = LESSON.length - 1, COUNT = LESSON[WRITING].items.length;
+const KEY = 'english-review.lesson-' + entry.id + '.v1';
+document.title = 'Lesson ' + entry.id + ', ' + entry.title;
+document.querySelector('#lesson-introduction').innerHTML = entry.intro;
+const empty = () => ({version:1,tasks:LESSON.map(()=>({attempts:[],draft:null}))});
+let state = empty(), storageOK = true;
+try { const raw=localStorage.getItem(KEY); if(raw){const saved=JSON.parse(raw); if(entry.id===2 && saved.tasks?.length===LESSON.length+1) saved.tasks.splice(3,1); if(saved.version===1 && Array.isArray(saved.tasks) && saved.tasks.length===LESSON.length && saved.tasks.every(t=>Array.isArray(t.attempts))) state=saved; else throw Error('Invalid data');} } catch(e){storageOK=false;}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){storageOK=false; showStorage();}}
+function showStorage(){const el=document.querySelector('#storage-message');if(el&&!storageOK){el.hidden=false;el.textContent='Saved progress is unavailable or invalid. You can still practise, but changes may not survive a refresh.';}}
+const escapeHTML = s => String(s ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const latest = t => t.attempts[t.attempts.length-1];
+function result(attempt,taskIndex){if(!attempt)return null;if(taskIndex<WRITING){let correct=0,total=0;LESSON[taskIndex].items.forEach((item,i)=>item.parts.forEach((p,j)=>{total++;if(Number(attempt.answers[i][j])===p.answer)correct++;}));return {correct,incorrect:total-correct,unreviewed:0,total};}let marks=attempt.marks||[];let correct=marks.filter(m=>m==='correct').length, incorrect=marks.filter(m=>m==='revision').length;return {correct,incorrect,unreviewed:COUNT-correct-incorrect,total:COUNT};}
+function resultText(a,i){let r=result(a,i);if(!r)return 'Not submitted';if(i===WRITING&&r.unreviewed===COUNT)return `Awaiting teacher review (${COUNT} unreviewed)`;return `${r.correct} correct, ${r.incorrect} incorrect${i===WRITING?`, ${r.unreviewed} unreviewed`:''} / ${r.total}`;}
+function homeStatus(){let ts=state.tasks;if(ts.every(t=>t.attempts.length)&&result(latest(ts[WRITING]),3).unreviewed===0)return 'Reviewed';if(ts.every(t=>t.attempts.length))return 'Awaiting teacher review';if(ts.some(t=>t.attempts.length||t.draft))return 'In progress';return 'Not started';}
+function announce(s){document.querySelector('#announcement').textContent=s;}
+function options(name,part,value,prompt){return `<fieldset class="options"><legend${part.label?'':' class="sr-only"'}>${escapeHTML(part.label || prompt)}</legend>${part.options.map((o,k)=>`<label class="option"><input type="radio" name="${name}" value="${k}" ${String(value)===String(k)?'checked':''} required> <span>${escapeHTML(o)}</span></label>`).join('')}</fieldset>`;}
+function form(i,t){let draft=t.draft || {answers:LESSON[i].items.map(x=>i===WRITING?'':x.parts.map(()=>null))};return `<form data-task="${i}" novalidate>${t.attempts.length?'<p class="muted">Your previous result stays saved until you submit this retry.</p>':''}${LESSON[i].items.map((item,j)=>`<div class="question"><h3>${j+1}. ${escapeHTML(item.prompt)}</h3>${i===WRITING?`<label for="writing-${j}">Your response</label><textarea id="writing-${j}" name="q${j}" required>${escapeHTML(draft.answers[j])}</textarea>`:item.parts.map((p,k)=>options(`q${j}-${k}`,p,draft.answers[j]?.[k],item.prompt)).join('')}</div>`).join('')}<p class="error" role="alert" id="error-${i}"></p><div class="actions"><button type="submit">Submit task ${i+1}</button>${t.attempts.length?`<button type="button" class="secondary" data-cancel="${i}">Cancel retry</button>`:''}</div></form>`;}
+function feedback(i,a){if(i===WRITING)return `<div class="feedback" tabindex="-1" id="feedback-${i}"><h3>Writing submitted</h3><p>Your answers are ready for teacher review. The examples below are possible responses, not the only acceptable answers.</p>${LESSON[i].items.map((q,j)=>`<div class="feedback-item"><strong>${j+1}. ${escapeHTML(q.prompt)}</strong><p>Your response: ${escapeHTML(a.answers[j])}</p><p>Review checklist: ${escapeHTML(q.criterion)}</p><p>Example: ${escapeHTML(q.model)}</p></div>`).join('')}</div>`;return `<div class="feedback" tabindex="-1" id="feedback-${i}"><h3>Task feedback</h3>${LESSON[i].items.map((q,j)=>`<div class="feedback-item"><strong>${j+1}. ${escapeHTML(q.prompt)}</strong>${q.parts.map((p,k)=>{let chosen=Number(a.answers[j][k]);return `<p><span class="result-label">${chosen===p.answer?'Correct':'Incorrect'}</span>${p.label ? " — "+escapeHTML(p.label) : ""}<br>Your choice: ${escapeHTML(p.options[chosen])}<br>Correct answer: ${escapeHTML(p.options[p.answer])}<br>${escapeHTML(p.explanation)}</p>`}).join('')}</div>`).join('')}</div>`;}
+function review(a){return `<div class="review"><h3>Teacher review</h3><p>Manual scoring is local to this browser and has no authentication. Choose a mark for each response; comments are optional. “Needs revision” counts as incorrect. Unmarked responses remain unreviewed.</p>${LESSON[WRITING].items.map((q,j)=>`<div class="review-row"><p><strong>${j+1}. ${escapeHTML(q.prompt)}</strong><br>${escapeHTML(a.answers[j])}</p><p class="muted">${escapeHTML(q.criterion)} Accept valid variations.</p><fieldset><legend>Teacher mark for response ${j+1}</legend>${[['','Unreviewed'],['correct','Correct'],['revision','Needs revision']].map(([v,l])=>`<label><input type="radio" name="mark-${j}" value="${v}" ${((a.marks||[])[j]||'')===v?'checked':''} data-mark="${j}"> ${l}</label>`).join('')}</fieldset><label for="comment-${j}">Teacher comment (optional)</label><textarea id="comment-${j}" data-comment="${j}">${escapeHTML((a.comments||[])[j]||'')}</textarea></div>`).join('')}</div>`;}
+function render(){showStorage();document.querySelector('#progress').innerHTML=LESSON.map((q,i)=>`<a href="#task-${i+1}"><strong>0${i+1} ${escapeHTML(q.title)}</strong><span>${state.tasks[i].attempts.length?'Submitted':'Not submitted'}</span></a>`).join('');document.querySelector('#lesson').innerHTML=LESSON.map((q,i)=>{let t=state.tasks[i],a=latest(t),editing=!a||!!t.draft;return `<section class="task" id="task-${i+1}"><div class="task-header"><span class="number">0${i+1}</span><div><h2>${escapeHTML(q.title)}</h2><p>${escapeHTML(q.intro)}</p></div></div><div class="task-body">${a?`<p><strong>First attempt:</strong> ${resultText(t.attempts[0],i)}<br><strong>Latest submitted attempt${t.attempts.length>1?` (${t.attempts.length})`:''}:</strong> ${resultText(a,i)}</p>`:''}${editing?form(i,t):`${feedback(i,a)}${i===WRITING?review(a):''}<div class="actions"><button type="button" data-retry="${i}">Retry task ${i+1}</button></div>`}${i===WRITING&&t.attempts.length>1?`<p class="muted">Previous attempt (${t.attempts.length-1}): ${resultText(t.attempts[t.attempts.length-2],i)}</p>`:''}</div></section>`}).join('');renderOverview();}
+function renderOverview(){let el=document.querySelector('#overview'),ready=state.tasks.every(t=>t.attempts.length);el.hidden=!ready;if(!ready)return;let rs=state.tasks.map((t,i)=>result(latest(t),i)),correct=rs.reduce((n,r)=>n+r.correct,0),incorrect=rs.reduce((n,r)=>n+r.incorrect,0),pending=rs[WRITING].unreviewed,scored=correct+incorrect;el.innerHTML=`<h2 id="overview-heading">Final overview</h2><div class="summary">${LESSON.map((q,i)=>`<div class="summary-row"><strong>Task ${i+1}: ${escapeHTML(q.title)}</strong><span>First: ${resultText(state.tasks[i].attempts[0],i)}</span><span>Latest: ${resultText(latest(state.tasks[i]),i)}</span></div>`).join('')}<p><strong>${pending?'Provisional combined score':'Combined score'}: ${correct} correct, ${incorrect} incorrect out of ${scored} scored responses</strong> (${LESSON.reduce((n,q,i)=>n+(i===WRITING?q.items.length:q.items.reduce((m,x)=>m+x.parts.length,0)),0)} possible; ${pending} awaiting review).</p><p>${pending?'Your writing is awaiting teacher review.':incorrect===0?'All scored responses are correct.':`Review the ${incorrect} response${incorrect===1?'':'s'} marked incorrect, then retry any task you want to improve.`}</p><div class="actions"><a href="#task-1">Revisit tasks or retry</a><a href="index.html">Return home</a></div></div>`;}
+function readForm(form,i){return LESSON[i].items.map((q,j)=>i===WRITING?form.elements[`q${j}`].value.trim():q.parts.map((p,k)=>{let x=form.querySelector(`input[name="q${j}-${k}"]:checked`);return x?Number(x.value):null;}));}
+if(document.body.dataset.page==='home'){document.querySelector('#home-status').textContent=homeStatus();}else{render();document.addEventListener('input',e=>{let form=e.target.closest('form[data-task]');if(form){let i=Number(form.dataset.task);state.tasks[i].draft={answers:readForm(form,i)};save();}if(e.target.matches('[data-comment]')){let a=latest(state.tasks[WRITING]);a.comments??=Array(COUNT).fill('');a.comments[Number(e.target.dataset.comment)]=e.target.value;save();}});document.addEventListener('change',e=>{if(e.target.matches('[data-mark]')){let a=latest(state.tasks[WRITING]);a.marks??=Array(COUNT).fill('');a.marks[Number(e.target.dataset.mark)]=e.target.value;save();render();announce('Teacher mark saved. Scores updated.');}});document.addEventListener('submit',e=>{let f=e.target.closest('form[data-task]');if(!f)return;e.preventDefault();let i=Number(f.dataset.task),answers=readForm(f,i),complete=i===WRITING?answers.every(Boolean):answers.every(row=>row.every(x=>x!==null));if(!complete){let err=document.querySelector(`#error-${i}`);err.textContent='Please complete every response before submitting.';return;}let t=state.tasks[i];t.attempts.push({answers,marks:i===WRITING?Array(COUNT).fill(''):[],comments:i===WRITING?Array(COUNT).fill(''):[]});t.draft=null;save();render();document.querySelector(`#feedback-${i}`).focus();announce(`Task ${i+1} submitted. Feedback is now available.`);});document.addEventListener('click',e=>{let retry=e.target.closest('[data-retry]'),cancel=e.target.closest('[data-cancel]');if(retry){let i=Number(retry.dataset.retry);state.tasks[i].draft={answers:LESSON[i].items.map(q=>i===WRITING?'':q.parts.map(()=>null))};save();render();document.querySelector(`#task-${i+1} form input, #task-${i+1} form textarea`)?.focus();}if(cancel){let i=Number(cancel.dataset.cancel);state.tasks[i].draft=null;save();render();document.querySelector(`#task-${i+1} [data-retry]`)?.focus();}});document.querySelector('#reset').addEventListener('click',()=>{if(confirm('Delete all saved progress for this lesson? This cannot be undone.')){state=empty();try{localStorage.removeItem(KEY);}catch(e){storageOK=false;}render();announce('Lesson progress reset.');}});}
+
+function exportMarkdown() {
+  const lines = [`# ${entry.title} — answers`, ''];
+  LESSON.forEach((task, i) => {
+    lines.push(`## Task ${i + 1}: ${task.title}`, '');
+    const saved = state.tasks[i];
+    const versions = saved.attempts.map((a, n) => ({label: `Attempt ${n + 1}`, data: a}));
+    if (saved.draft) versions.push({label: 'Current draft (not submitted)', data: saved.draft});
+    if (!versions.length) { lines.push('Not started.', ''); return; }
+    versions.forEach(({label, data}) => {
+      lines.push(`### ${label}`, '');
+      task.items.forEach((q, j) => {
+        lines.push(`**${j + 1}. ${q.prompt}**`, '');
+        if (q.parts) q.parts.forEach((p, k) => {
+          const value = data.answers?.[j]?.[k];
+          const answered = value !== null && value !== undefined && value !== '';
+          if (p.label) lines.push(`- Part: ${p.label}`);
+          lines.push(`- Your answer: ${answered ? p.options[Number(value)] : 'Not answered'}`);
+          lines.push(`- Result: ${!answered ? 'Not answered' : label.startsWith('Current draft') ? 'Not submitted' : Number(value) === p.answer ? 'Correct' : 'Incorrect'}`);
+          lines.push(`- Correct answer: ${p.options[p.answer]}`);
+          if (p.explanation) lines.push(`- Explanation: ${p.explanation}`);
+        });
+        else {
+          lines.push(`- Your answer: ${data.answers?.[j] || 'Not answered'}`);
+          const mark = data.marks?.[j];
+          lines.push(`- Result: ${mark === 'correct' ? 'Correct' : mark === 'revision' ? 'Needs revision' : 'Unreviewed'}`);
+          if (data.comments?.[j]) lines.push(`- Teacher comment: ${data.comments[j]}`);
+          if (q.criterion) lines.push(`- Review checklist: ${q.criterion}`);
+          if (q.model) lines.push(`- Example answer: ${q.model}`);
+        }
+        lines.push('');
+      });
+    });
+  });
+  return lines.join('\n');
+}
+function downloadAnswers() {
+  const url = URL.createObjectURL(new Blob([exportMarkdown()], {type:'text/markdown;charset=utf-8'}));
+  const a = document.createElement('a'); a.href=url; a.download=`lesson-${entry.id}-answers.md`; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+document.querySelector('#export').addEventListener('click', downloadAnswers);
+document.querySelector('#share').addEventListener('click', async () => {
+  const file = typeof File === 'function' ? new File([exportMarkdown()], `lesson-${entry.id}-answers.md`, {type:'text/markdown'}) : null;
+  if (file && navigator.share && navigator.canShare && navigator.canShare({files:[file]})) {
+    try { await navigator.share({files:[file], title:`${entry.title} answers`}); }
+    catch (error) { if (error.name !== 'AbortError') { downloadAnswers(); document.querySelector('#export-message').textContent='Sharing failed, so the answers were downloaded instead.'; } }
+  } else { downloadAnswers(); document.querySelector('#export-message').textContent='File sharing is unavailable here, so the answers were downloaded instead.'; }
+});
